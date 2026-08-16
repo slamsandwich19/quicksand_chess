@@ -1,6 +1,6 @@
 mod debug;
 
-use cozy_chess::{Board};
+use cozy_chess::{Board, Move};
 use debug::print_board;
 
 fn main() {
