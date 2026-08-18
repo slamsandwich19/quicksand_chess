@@ -1,6 +1,6 @@
 use cozy_chess::{Board, Piece, Color, Square, File, Rank};
 
-pub fn print_board(board: Board) {
+pub fn print_board(board: &Board) {
 
     for rank in Rank::ALL.into_iter().rev() {
         // display rank header
