@@ -2,6 +2,7 @@ mod move_list;
 mod debug;
 
 // third party
+use cozy_chess::util::parse_san_move;
 use cozy_chess::{Board, Move};
 use rand::RngExt;
 
@@ -23,10 +24,26 @@ fn main() {
         // Todo: Isolate bot code to separate file
 
         // get user input
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let player_move = input.trim_end().parse::<Move>().unwrap();
-        board.play(player_move);
+        loop {
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+
+            let player_move = match parse_san_move(&board, &input.trim_end()) {
+                Ok(mv) => mv,
+                Err(_) => {
+                    println!("Unknown move format, please try again");
+                    continue;
+                }
+            };
+
+            match board.try_play(player_move) {
+                Ok(_) => break player_move,
+                Err(_) => {
+                    println!("Illegal move, please try again:");
+                    continue;
+                }
+            }
+        };
         
         // get legal moves
         let mut move_list = MoveList::new();
