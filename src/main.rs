@@ -1,13 +1,12 @@
-mod move_list;
+mod engine;
 mod debug;
 
 // third party
 use cozy_chess::util::parse_san_move;
-use cozy_chess::{Board, Move};
-use rand::RngExt;
+use cozy_chess::Board;
 
 // project
-use move_list::MoveList;
+use engine::bot::get_best_move;
 use debug::print_board;
 
 // std
@@ -19,9 +18,7 @@ fn main() {
     print_board(&board);
 
     for _ in 0..100 {
-        // Todo: Refuse illegal moves
         // Todo: Exit upon game completion
-        // Todo: Isolate bot code to separate file
 
         // get user input
         loop {
@@ -44,25 +41,12 @@ fn main() {
                 }
             }
         };
-        
-        // get legal moves
-        let mut move_list = MoveList::new();
-        board.generate_moves(|moves| {
-            for mv in moves {
-                move_list.push(mv);
-            }
-            return false
-        });
 
-        // play random move
-        let move_index = rand::rng().random_range(0..move_list.count());
-        board.play(move_list[move_index].unwrap());
+        // play bot move
+        let best_move = get_best_move(&mut board);
+        board.play(best_move);
+
+        // display board
         print_board(&board);
     }
 }
-
-/* print moves
-for index in 0..(move_list.count()) {
-    println!("{}", move_list[index].unwrap());
-}
-*/
