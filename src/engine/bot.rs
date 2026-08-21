@@ -4,8 +4,11 @@ use rand::RngExt;
 
 // project
 use super::move_list::MoveList;
+use super::evaluation::evaluate;
 
 pub fn get_best_move(board: &mut Board) -> Move {
+    println!("{}", evaluate(board));
+
     // get legal moves
     let mut move_list = MoveList::new();
     board.generate_moves(|moves| {
