@@ -18,18 +18,28 @@ pub fn print_board(board: &Board) {
             let piece = piece.unwrap();
             let color = color.unwrap();
             
-            let symbol = match piece {
-                Piece::Pawn => "P",
-                Piece::Knight => "N",
-                Piece::Bishop => "B",
-                Piece::Rook => "R",
-                Piece::Queen => "Q",
-                Piece::King => "K"
-            };
-
-            let display_char = if color == Color::White {symbol.to_ascii_lowercase()} else {symbol.to_ascii_lowercase()};
-
-            print!(" {} |", display_char);
+            if color == Color::White {
+                let symbol = match piece {
+                    Piece::Pawn   => "♟",
+                    Piece::Knight => "♞",
+                    Piece::Bishop => "♝",
+                    Piece::Rook   => "♜",
+                    Piece::Queen  => "♛",
+                    Piece::King   => "♚"
+                };
+                print!(" {} |", symbol);
+            }
+            else {
+                let symbol = match piece {
+                    Piece::Pawn   => "♙",
+                    Piece::Knight => "♘",
+                    Piece::Bishop => "♗",
+                    Piece::Rook   => "♖",
+                    Piece::Queen  => "♕",
+                    Piece::King   => "♔"
+                };
+                print!(" {} |", symbol);
+            }
         }
     }
     print!("\n  +---+---+---+---+---+---+---+---+\n    a   b   c   d   e   f   g   h\n");

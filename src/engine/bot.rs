@@ -1,24 +1,47 @@
 // third party
-use cozy_chess::{Board, Move};
-use rand::RngExt;
+use cozy_chess::{Board, Move, Color};
 
 // project
 use super::move_list::MoveList;
 use super::evaluation::evaluate;
 
-pub fn get_best_move(board: &mut Board) -> Move {
+pub fn get_best_move(board: &Board) -> Move {
     println!("{}", evaluate(board));
 
     // get legal moves
-    let mut move_list = MoveList::new();
+    let mut legal_moves = MoveList::new();
     board.generate_moves(|moves| {
         for mv in moves {
-            move_list.push(mv);
+            legal_moves.push(mv);
         }
         return false
     });
-    
-    // pick random move
-    let move_index = rand::rng().random_range(0..move_list.count());
-    move_list[move_index].unwrap()
+
+    // get best move
+    let mut best_score = if board.side_to_move() == Color::White {-100_000} else {100_000};
+    let mut best_move = legal_moves[0].unwrap();
+    for index in 0..legal_moves.count() {
+        let current_move = legal_moves[index].unwrap();
+        let mut next_board = board.clone();
+        next_board.play_unchecked(current_move);
+        let score = evaluate(&next_board);
+
+        print!("{}, ", score);
+        
+        if board.side_to_move() == Color::White {
+            if score > best_score {
+                best_score = score;
+                best_move = current_move;
+            }
+        }
+        else  {
+            if score < best_score {
+                best_score = score;
+                best_move = current_move;
+            }
+        }
+        
+    }
+
+    best_move
 }
