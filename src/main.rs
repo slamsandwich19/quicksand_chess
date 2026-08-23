@@ -2,7 +2,7 @@ mod core;
 mod debug;
 
 // third party
-use cozy_chess::util::parse_san_move;
+use cozy_chess::util::display_uci_move;
 use cozy_chess::Board;
 
 // project
@@ -12,48 +12,89 @@ use debug::print_board;
 // std
 use std::io;
 
-fn main() {
-    let mut engine = Engine::new();
+fn uci() {
+    println!("id name Quicksand");
+    println!("id author BigSauce");
+    println!("uciok");
+}
 
-    // Start position
-    let mut board = Board::default();
-    print_board(&board);
+fn isready() {
+    println!("readyok");
+}
 
-    for _ in 0..100 {
-        // Todo: Exit upon game completion
+fn apply_moves(board: &Board, moves: &[&str]) -> Board {
+    let mut new_board = board.clone();
 
-        // get user input
-        loop {
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
+    for move_str in moves {
+        if let Ok(mv) = move_str.parse() {
+            new_board.play_unchecked(mv);
+        }
+    }
+    new_board
+}
 
-            let player_move = match parse_san_move(&board, &input.trim_end()) {
-                Ok(mv) => mv,
-                Err(_) => {
-                    println!("Unknown move format, please try again");
-                    continue;
-                }
-            };
+fn position(command: &Vec<&str>) -> Board {
+    if command.len() < 2 {
+        return Board::default();
+    }
 
-            match board.try_play(player_move) {
-                Ok(_) => break player_move,
-                Err(_) => {
-                    println!("Illegal move, please try again:");
-                    continue;
-                }
+    match command[1] {
+        "startpos" => {
+            let board = Board::default();
+            if command.len() > 3 && command[2] == "moves" {
+                apply_moves(&board, &command[3..])
+            } else {
+                board
             }
-        };
+        }
+        "fen" => {
+            // Find where "moves" starts (if present) to separate the FEN tokens
+            let moves_idx = command.iter().position(|&r| r == "moves");
+            let fen_end = moves_idx.unwrap_or(command.len());
+            
+            let fen_str = command[2..fen_end].join(" ");
+            let board = fen_str.parse::<Board>().unwrap_or_default();
 
-        // play bot move
-        let best_move = engine.get_best_move(&mut board);
-        if best_move.is_none() {
-            println!("\nNo move found");
-            break
-        } else {
-            board.play_unchecked(best_move.unwrap());
+            if let Some(idx) = moves_idx {
+                apply_moves(&board, &command[idx + 1..])
+            } else {
+                board
+            }
         }
 
-        print_board(&board);
+        _ => Board::default()
+    }
+}
 
+fn go(engine: &mut Engine, board: &Board) {
+    if let Some(best_move) = engine.get_best_move(board) {
+        println!("bestmove {}", best_move);
+    }
+}
+
+fn main() {
+    let mut engine = Engine::new();
+    let mut board = Board::default();
+
+    loop {
+        // read input
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() {
+            break;
+        }
+        let command: Vec<&str> = input.split_whitespace().collect();
+
+        if command.is_empty() {
+            continue;
+        }
+
+        match command[0] {
+            "uci" => uci(),
+            "isready" => isready(),
+            "position" => board = position(&command),
+            "go" => go(&mut engine, &board),
+            "quit" => break,
+            _ => {}
+        }
     }
 }

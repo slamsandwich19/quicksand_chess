@@ -1,4 +1,5 @@
 // third party
+use cozy_chess::util::display_uci_move;
 use cozy_chess::{Board, Move};
 
 // project
@@ -54,19 +55,15 @@ impl Engine {
         for current_move in legal_moves {
             let mut next_board = board.clone();
             next_board.play_unchecked(current_move);
-            let score = -self.alpha_beta(&next_board, 2, -100000, 100000);
-
-            print!("{}, ", score);
+            let score = -self.alpha_beta(&next_board, 3, -100000, 100000);
 
             if score > best_score {
                 best_score = score;
                 best_move = Some(current_move);
             }
         }
-
-        print!("\ninfo depth 3");
-        print!(" score cp {}", best_score);
-        print!(" nodes {}", self.nodes_searched);
+        
+        println!("info depth 1 pv {}", best_move.unwrap());
 
         best_move
     }
