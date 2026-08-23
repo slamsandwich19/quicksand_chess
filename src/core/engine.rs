@@ -12,6 +12,8 @@ pub struct Engine {
 }
 
 impl Engine {
+    const CAPTURE_BONUS: i32 = 10_000;
+
     pub fn new() -> Self {
         Self { nodes_searched: 0 }
     }
@@ -25,6 +27,18 @@ impl Engine {
             .unwrap_or(Piece::Pawn);
 
         get_piece_value(victim) * 10 - get_piece_value(attacker)
+    }
+
+    pub fn score_move(&self, board: &Board, mv: Move) -> i32 {
+        let is_en_passant = board.piece_on(mv.from) == Some(Piece::Pawn)
+            && mv.from.file() != mv.to.file()
+            && board.piece_on(mv.to).is_none();
+    
+        if board.piece_on(mv.to).is_some() || is_en_passant {
+            Self::CAPTURE_BONUS + self.mvv_lva_score(board, mv)
+        } else {
+            0
+        }
     }
 
     pub fn get_legal_captures(&self, board: &Board) -> MoveList {
@@ -53,6 +67,8 @@ impl Engine {
             }
             return false
         });
+
+
         legal_moves
     }
 
@@ -60,7 +76,8 @@ impl Engine {
         // debug
         self.nodes_searched = 0;
 
-        let legal_moves = self.get_legal_moves(board);
+        let mut legal_moves = self.get_legal_moves(board);
+        legal_moves.sort_by_key(|mv| self.score_move(board, mv));
         let mut best_score = -100_000;
         let mut best_move = legal_moves[0];
 
@@ -96,7 +113,8 @@ impl Engine {
         };
 
         // get legal moves
-        let legal_moves = self.get_legal_moves(board);
+        let mut legal_moves = self.get_legal_moves(board);
+        legal_moves.sort_by_key(|mv| self.score_move(board, mv));
         let mut best_score = -100_000;
 
         if legal_moves.is_empty() {
