@@ -2,7 +2,7 @@
 use cozy_chess::Move;
 
 // std
-use std::{array::IntoIter, ops::Index};
+use std::ops::Index;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoveList {
@@ -25,6 +25,16 @@ impl MoveList {
 
     pub fn is_empty(&self) -> bool {
         self.count == 0
+    }
+
+    pub fn sort_by_key<F, K>(&mut self, mut key_fn: F)
+    where
+        F: FnMut(Move) -> K,
+        K: Ord,
+    {
+        self.moves[0..self.count].sort_by_key(|mv| {
+            std::cmp::Reverse(key_fn(mv.unwrap()))
+        })
     }
 }
 

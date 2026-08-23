@@ -1,13 +1,10 @@
 mod core;
-mod debug;
 
 // third party
-use cozy_chess::util::display_uci_move;
 use cozy_chess::Board;
 
 // project
 use core::engine::Engine;
-use debug::print_board;
 
 // std
 use std::io;

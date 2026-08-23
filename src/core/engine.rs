@@ -1,10 +1,9 @@
 // third party
-use cozy_chess::util::display_uci_move;
-use cozy_chess::{Board, Move};
+use cozy_chess::{Board, Move, Piece};
 
 // project
 use super::move_list::MoveList;
-use super::evaluation::evaluate;
+use super::evaluation::{evaluate, get_piece_value};
 
 type Score = i32;
 
@@ -15,6 +14,17 @@ pub struct Engine {
 impl Engine {
     pub fn new() -> Self {
         Self { nodes_searched: 0 }
+    }
+
+    pub fn mvv_lva_score(&self, board: &Board, mv: Move) -> i32 {
+        let attacker = board
+            .piece_on(mv.from)
+            .expect("Piece must exist on from square");
+        let victim = board
+            .piece_on(mv.to)
+            .unwrap_or(Piece::Pawn);
+
+        get_piece_value(victim) * 10 - get_piece_value(attacker)
     }
 
     pub fn get_legal_captures(&self, board: &Board) -> MoveList {
@@ -30,6 +40,8 @@ impl Engine {
             }
             return false
         });
+
+        legal_captures.sort_by_key(|mv| self.mvv_lva_score(board, mv));
         legal_captures
     }
 
@@ -62,6 +74,16 @@ impl Engine {
                 best_move = Some(current_move);
             }
         }
+
+        print!("info depth 1 ");
+        print!("score cp {} ", best_score);
+        print!("nodes {} ", self.nodes_searched);
+        print!("pv {}\n", best_move.unwrap());
+
+        print!("info depth 2 ");
+        print!("score cp {} ", best_score);
+        print!("nodes {} ", self.nodes_searched);
+        print!("pv {}\n", best_move.unwrap());
         
         println!("info depth 1 pv {}", best_move.unwrap());
 
