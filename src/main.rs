@@ -47,7 +47,7 @@ fn main() {
         // play bot move
         let best_move = engine.get_best_move(&mut board);
         if best_move.is_none() {
-            println!("Move not found");
+            println!("\nNo move found");
             break
         } else {
             board.play_unchecked(best_move.unwrap());
