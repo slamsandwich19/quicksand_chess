@@ -1,13 +1,11 @@
 // third party
 use cozy_chess::{Board, Move};
 
-// standard
-use std::cmp::max;
-
 // project
 use super::move_list::MoveList;
 use super::evaluation::evaluate;
-use super::super::debug::print_board;
+
+type Score = i32;
 
 pub struct Engine {
     pub nodes_searched: i32
@@ -18,10 +16,26 @@ impl Engine {
         Self { nodes_searched: 0 }
     }
 
+    pub fn get_legal_captures(&self, board: &Board) -> MoveList {
+        let mut legal_captures = MoveList::new();
+
+        let enemy_pieces = board.colors(!board.side_to_move());
+
+        board.generate_moves(|mut move_group| {
+            move_group.to &= enemy_pieces;
+
+            for mv in move_group {
+                legal_captures.push(mv);
+            }
+            return false
+        });
+        legal_captures
+    }
+
     pub fn get_legal_moves(&self, board: &Board) -> MoveList {
         let mut legal_moves = MoveList::new();
-        board.generate_moves(|piece_moves| {
-            for mv in piece_moves {
+        board.generate_moves(|move_group| {
+            for mv in move_group {
                 legal_moves.push(mv);
             }
             return false
@@ -40,7 +54,7 @@ impl Engine {
         for current_move in legal_moves {
             let mut next_board = board.clone();
             next_board.play_unchecked(current_move);
-            let score = -self.alpha_beta(&next_board,3, -100000, 100000);
+            let score = -self.alpha_beta(&next_board, 2, -100000, 100000);
 
             print!("{}, ", score);
 
@@ -57,15 +71,22 @@ impl Engine {
         best_move
     }
 
-    fn alpha_beta(&mut self, board: &Board, depth: i32, alpha: Score, beta: Score) -> Score {
+    fn alpha_beta(&mut self, board: &Board, depth: i32, mut alpha: Score, beta: Score) -> Score {
         if depth == 0 {
-            self.nodes_searched += 1;
-            return evaluate(&board)
+            return self.quiescence_search(&board, alpha, beta, 0);
         };
 
         // get legal moves
         let legal_moves = self.get_legal_moves(board);
         let mut best_score = -100_000;
+
+        if legal_moves.is_empty() {
+            if board.checkers().is_empty() {
+                return 0;
+            } else {
+                return -90_000 - depth;
+            }
+        }
 
         // get best move
         for current_move in legal_moves {
@@ -73,11 +94,66 @@ impl Engine {
             next_board.play_unchecked(current_move);
             let score = -self.alpha_beta(&next_board, depth - 1, -beta, -alpha);
 
-            best_score = max(score, best_score);
+            if score > best_score {
+                best_score = score;
+            }
+
+            if score > alpha {
+                alpha = score;
+            }
+
+            if score >= beta {
+                break;
+            }
+        }
+
+        best_score
+    }
+
+    fn quiescence_search(&mut self, board: &Board, mut alpha: i32, beta: i32, qs_depth: i32) -> i32 {
+        self.nodes_searched += 1;
+
+        // prevent depth explosions
+        if qs_depth > 2 {
+            return evaluate(board);
+        }
+
+        // stand pat is not valid in checks
+        let is_check = !board.checkers().is_empty();
+        let best_score = if is_check {
+            -100_000
+        } else {
+            let static_score = evaluate(board);
+
+            if static_score >= beta {
+                return beta;
+            }
+            if static_score > alpha {
+                alpha = static_score;
+            }
+
+            static_score
+        };
+        
+        let legal_moves = if is_check {
+            self.get_legal_moves(board)
+        } else {
+            self.get_legal_captures(board)
+        };
+        
+        for current_move in legal_moves {
+            let mut next_board = board.clone();
+            next_board.play_unchecked(current_move);
+            let score = -self.quiescence_search(&next_board, -beta, -alpha, qs_depth + 1);
+
+            if score >= beta {
+                return score;
+            }
+            if score > alpha {
+                alpha = score;
+            }
         }
 
         best_score
     }
 }
-
-type Score = i32;
