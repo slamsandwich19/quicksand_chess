@@ -79,16 +79,20 @@ impl Engine {
         let mut legal_moves = self.get_legal_moves(board);
         legal_moves.sort_by_key(|mv| self.score_move(board, mv));
         let mut best_score = -100_000;
-        let mut best_move = legal_moves[0];
+        let mut best_move = None;
+        let mut alpha = -100_000;
 
         for current_move in legal_moves {
             let mut next_board = board.clone();
-            next_board.play_unchecked(current_move);
-            let score = -self.alpha_beta(&next_board, 3, -100000, 100000);
+            next_board.play(current_move);
+            let score = -self.alpha_beta(&next_board, 3, -100_000, -alpha);
 
             if score > best_score {
                 best_score = score;
                 best_move = Some(current_move);
+            }
+            if score > alpha {
+                alpha = score;
             }
         }
 
@@ -101,6 +105,12 @@ impl Engine {
         print!("score cp {} ", best_score);
         print!("nodes {} ", self.nodes_searched);
         print!("pv {}\n", best_move.unwrap());
+
+        print!("info moves ");
+        for current_move in legal_moves {
+            print!("{}, ", current_move);
+        }
+        print!("\n");
         
         println!("info depth 1 pv {}", best_move.unwrap());
 
