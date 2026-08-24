@@ -73,46 +73,43 @@ impl Engine {
     }
 
     pub fn get_best_move(&mut self, board: &Board) -> Option<Move> {
-        // debug
-        self.nodes_searched = 0;
+        // search meta
+        let mut best_move = None;
 
+        // legal moves
         let mut legal_moves = self.get_legal_moves(board);
         legal_moves.sort_by_key(|mv| self.score_move(board, mv));
-        let mut best_score = -100_000;
-        let mut best_move = None;
-        let mut alpha = -100_000;
 
-        for current_move in legal_moves {
-            let mut next_board = board.clone();
-            next_board.play(current_move);
-            let score = -self.alpha_beta(&next_board, 3, -100_000, -alpha);
+        for depth in 1..5 {
+            // debug
+            self.nodes_searched = 0;
 
-            if score > best_score {
-                best_score = score;
-                best_move = Some(current_move);
+            // search meta
+            let mut best_score = -100_000;
+            let mut alpha = -100_000;
+
+            for current_move in legal_moves {
+                // use board clones for purity
+                let mut next_board = board.clone();
+                next_board.play(current_move);
+
+                let score = -self.alpha_beta(&next_board, depth, -100_000, -alpha);
+                
+                if score > best_score {
+                    best_score = score;
+                    best_move = Some(current_move);
+                }
+                if score > alpha {
+                    alpha = score;
+                }
             }
-            if score > alpha {
-                alpha = score;
-            }
+
+            // debug
+            print!("info depth {} ", depth);
+            print!("score cp {} ", best_score);
+            print!("nodes {} ", self.nodes_searched);
+            print!("pv {}\n", best_move.unwrap());
         }
-
-        print!("info depth 1 ");
-        print!("score cp {} ", best_score);
-        print!("nodes {} ", self.nodes_searched);
-        print!("pv {}\n", best_move.unwrap());
-
-        print!("info depth 2 ");
-        print!("score cp {} ", best_score);
-        print!("nodes {} ", self.nodes_searched);
-        print!("pv {}\n", best_move.unwrap());
-
-        print!("info moves ");
-        for current_move in legal_moves {
-            print!("{}, ", current_move);
-        }
-        print!("\n");
-        
-        println!("info depth 1 pv {}", best_move.unwrap());
 
         best_move
     }
