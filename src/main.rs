@@ -1,6 +1,7 @@
 mod core;
 
 // third party
+use cozy_chess::util::parse_uci_move;
 use cozy_chess::Board;
 
 // project
@@ -23,8 +24,9 @@ fn apply_moves(board: &Board, moves: &[&str]) -> Board {
     let mut new_board = board.clone();
 
     for move_str in moves {
-        if let Ok(mv) = move_str.parse() {
-            new_board.play_unchecked(mv);
+        match parse_uci_move(&new_board, move_str) {
+            Ok(mv) => new_board.play(mv),
+            Err(_) => {println!("info error malformed move"); break},
         }
     }
     new_board
