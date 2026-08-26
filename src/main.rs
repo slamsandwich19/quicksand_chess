@@ -1,11 +1,11 @@
-mod core;
+mod engine;
 
 // third party
 use cozy_chess::util::parse_uci_move;
 use cozy_chess::Board;
 
 // project
-use core::engine::Engine;
+use engine::engine::Engine;
 
 // std
 use std::io;
@@ -65,9 +65,19 @@ fn position(command: &Vec<&str>) -> Board {
     }
 }
 
-fn go(engine: &mut Engine, board: &Board) {
-    if let Some(best_move) = engine.get_best_move(board) {
-        println!("bestmove {}", best_move);
+fn go(engine: &mut Engine, board: &Board, command: &Vec<&str>) {
+    match command[1] {
+        "depth" => {
+            let expected_depth = command[2].parse::<i32>();
+            if let Some(best_move) = engine.get_best_move(board, expected_depth.unwrap()) {
+                println!("bestmove {}", best_move);
+            }
+        }
+        _ => {
+            if let Some(best_move) = engine.get_best_move(board, 3) {
+                println!("bestmove {}", best_move);
+            }
+        }
     }
 }
 
@@ -91,7 +101,7 @@ fn main() {
             "uci" => uci(),
             "isready" => isready(),
             "position" => board = position(&command),
-            "go" => go(&mut engine, &board),
+            "go" => go(&mut engine, &board, &command),
             "quit" => break,
             _ => {}
         }

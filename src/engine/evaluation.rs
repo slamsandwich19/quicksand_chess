@@ -1,6 +1,11 @@
 // third party
 use cozy_chess::{Piece, Color, Square, Board};
 
+pub type Score = i32;
+
+pub const INFINITY: i32 = 32_001;
+pub const MATE_SCORE: i32 = 32_000;
+
 const MG_VALUE: [i32; 6] = [82, 337, 365, 477, 1025, 0];
 
 const MG_PAWN_TABLE: [i32; 64] = [
