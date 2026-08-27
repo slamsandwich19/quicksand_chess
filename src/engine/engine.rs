@@ -2,10 +2,10 @@
 use cozy_chess::{Board, Move, Piece};
 
 // std
-use std::cmp::{max, Reverse};
+use std::cmp::max;
 
 // project
-use crate::engine::transposition_table::TranspositionTable;
+use crate::engine::transposition_table::{Bound, TTEntry, TranspositionTable};
 use crate::engine::evaluation::{INFINITY, MATE_SCORE, Score, evaluate, get_piece_value};
 use crate::engine::move_list::MoveList;
 
@@ -26,7 +26,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    const MAX_PLY: i32 = 14;
+    const MAX_PLY: i32 = 8;
 
     pub fn new() -> Self {
         Self {
@@ -38,6 +38,7 @@ impl Engine {
     }
 
     pub fn get_best_move(&mut self, board: &Board, max_depth: i32) -> Option<Move> {
+        self.age = self.age.wrapping_add(1);
         for depth in 1..(max_depth+1) {
             // debug
             self.nodes_searched = 0;
@@ -67,6 +68,26 @@ impl Engine {
     }
 
     fn alpha_beta(&mut self, board: &Board, mut ctx: SearchCTX) -> Score {
+        // debug
+        self.nodes_searched += 1;
+
+        // probe transposition table
+        let key = board.hash();
+        let mut tt_move: Option<Move> = None;
+
+        if let Some(entry) = self.tt.probe(key) {
+            tt_move = entry.best_move.clone();
+            if entry.depth as i32 >= ctx.depth && ctx.ply > 0 {
+                let score = self.score_from_tt(entry.score, ctx.ply as i32);
+                match entry.bound {
+                    Bound::Exact => return score,
+                    Bound::Lower if score >= ctx.beta => return score,
+                    Bound::Upper if score <= ctx.alpha => return score,
+                    _ => {}
+                }
+            }
+        }
+        
         // leaf node reached
         if ctx.depth == 0 {
             return self.quiescence_search(
@@ -77,8 +98,8 @@ impl Engine {
 
         // get legal moves
         let mut legal_moves = self.get_legal_moves(board);
-        legal_moves.sort_by_key(|mv| self.score_move(board, &mv));
-        
+        legal_moves.sort_by_key(|mv| self.score_move(board, &mv, &tt_move));
+
         // check if game is over
         if legal_moves.is_empty() {
             // no checks => stalemate
@@ -91,7 +112,9 @@ impl Engine {
         }
 
         // search meta
+        let original_alpha = ctx.alpha;
         let mut best_score = -INFINITY;
+        let mut best_move = None;
 
         // search moves
         for current_move in legal_moves {
@@ -115,6 +138,7 @@ impl Engine {
             // store search meta and prune
             if score > best_score {
                 best_score = score;
+                best_move = Some(current_move);
                 if ctx.ply == 0 {
                     self.best_move = Some(current_move);
                 }
@@ -126,6 +150,24 @@ impl Engine {
                 break
             };
         }
+
+        let bound = if best_score <= original_alpha {
+            Bound::Upper
+        } else if best_score >= ctx.beta {
+            Bound::Lower
+        } else {
+            Bound::Exact
+        };
+
+        self.tt.store(&TTEntry {
+            key: board.hash(),
+            depth: ctx.depth as u8,
+            score: self.score_to_tt(best_score, ctx.ply as i32),
+            bound,
+            best_move,
+            age: self.age,
+        });
+
         best_score
     }
 
@@ -221,7 +263,27 @@ impl Engine {
         legal_captures
     }
 
-    fn score_move(&self, board: &Board, mv: &Move) -> i32 {
+    // ! Created by Claude
+    fn score_to_tt(&self, score: Score, ply: i32) -> Score {
+        if score >= MATE_SCORE - Engine::MAX_PLY { score + ply }
+        else if score <= -MATE_SCORE + Engine::MAX_PLY { score - ply }
+        else { score }
+    }
+
+    // ! Created by Claude
+    fn score_from_tt(&self, score: Score, ply: i32) -> Score {
+        if score >= MATE_SCORE - Engine::MAX_PLY { score - ply }
+        else if score <= -MATE_SCORE + Engine::MAX_PLY { score + ply }
+        else { score }
+    }
+
+    fn score_move(&self, board: &Board, mv: &Move, tt_move: &Option<Move>) -> i32 {
+        if tt_move.is_some() {
+            if mv == &tt_move.unwrap() {
+                return INFINITY;
+            }
+        }
+
         let is_en_passant = board.piece_on(mv.from) == Some(Piece::Pawn)
             && mv.from.file() != mv.to.file()
             && board.piece_on(mv.to).is_none();
