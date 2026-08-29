@@ -18,7 +18,8 @@ struct SearchCTX {
 }
 
 pub struct Engine {
-    pub nodes_searched: i32,
+    pub ab_nodes: i32,
+    pub q_nodes: i32,
     pub best_move: Option<Move>,
 
     tt: TranspositionTable,
@@ -30,7 +31,8 @@ impl Engine {
 
     pub fn new() -> Self {
         Self {
-            nodes_searched: 0,
+            ab_nodes: 0,
+            q_nodes: 0,
             best_move: None,
             tt: TranspositionTable::new(64),
             age: 0
@@ -39,9 +41,11 @@ impl Engine {
 
     pub fn get_best_move(&mut self, board: &Board, max_depth: i32) -> Option<Move> {
         self.age = self.age.wrapping_add(1);
+        
         for depth in 1..(max_depth+1) {
             // debug
-            self.nodes_searched = 0;
+            self.ab_nodes = 0;
+            self.q_nodes = 0;
 
             // search meta
             self.best_move = None;
@@ -60,17 +64,15 @@ impl Engine {
             // debug
             print!("info depth {} ", depth);
             print!("score cp {} ", score);
-            print!("nodes {} ", self.nodes_searched);
-            print!("pv {}\n", self.best_move.unwrap()); // ! Could be a problem later
+            print!("pv {} ", self.best_move.unwrap()); // ! Could be a problem later
+            print!("string ab nodes {} ", self.ab_nodes);
+            print!("q nodes {}\n", self.q_nodes - self.ab_nodes);
         }
 
         self.best_move
     }
 
     fn alpha_beta(&mut self, board: &Board, mut ctx: SearchCTX) -> Score {
-        // debug
-        self.nodes_searched += 1;
-
         // probe transposition table
         let key = board.hash();
         let mut tt_move: Option<Move> = None;
@@ -90,6 +92,7 @@ impl Engine {
         
         // leaf node reached
         if ctx.depth == 0 {
+            self.ab_nodes += 1;
             return self.quiescence_search(
                 &board,
                 ctx.clone(),
@@ -172,7 +175,7 @@ impl Engine {
     }
 
     fn quiescence_search(&mut self, board: &Board, mut ctx: SearchCTX) -> Score {
-        self.nodes_searched += 1;
+        self.q_nodes += 1;
         
         // prevent depth explosions
         if ctx.ply as i32 > Self::MAX_PLY {
@@ -182,12 +185,12 @@ impl Engine {
         // stand pat is not valid in checks
         let is_check = !board.checkers().is_empty();
         let mut best_score = if is_check {
-            -INFINITY
+            -MATE_SCORE + ctx.ply as i32
         } else {
             let static_score = evaluate(board);
 
             if static_score >= ctx.beta {
-                return ctx.beta;
+                return static_score;
             }
             ctx.alpha = max(static_score, ctx.alpha);
 
@@ -195,11 +198,12 @@ impl Engine {
         };
 
         // get legal moves
-        let legal_moves = if is_check {
+        let mut legal_moves = if is_check {
             self.get_legal_moves(board)
         } else {
             self.get_legal_captures(board)
         };
+        legal_moves.sort_by_key(|mv| self.score_move(board, &mv, &None));
 
         // search
         for current_move in legal_moves {
@@ -259,7 +263,6 @@ impl Engine {
             return false
         });
 
-        legal_captures.sort_by_key(|mv| self.mvv_lva_score(board, &mv));
         legal_captures
     }
 
