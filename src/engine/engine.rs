@@ -1,27 +1,17 @@
 // third party
-use cozy_chess::{Board, Move, Piece};
+use cozy_chess::{Board, Move};
 
 // std
 use std::cmp::max;
 
 // project
 use crate::engine::transposition_table::{Bound, TTEntry, TranspositionTable};
-use crate::engine::evaluation::{INFINITY, MATE_SCORE, Score, evaluate, get_piece_value};
-use crate::engine::move_list::MoveList;
-
-#[derive(Clone, Copy)]
-struct SearchCTX {
-    depth: i32,
-    ply: usize,
-    alpha: i32,
-    beta: i32,
-}
+use crate::engine::evaluation::{INFINITY, MATE_SCORE, evaluate, score_move};
+use crate::engine::utils::{SearchCTX, get_legal_moves, get_legal_captures};
 
 pub struct Engine {
-    pub ab_nodes: i32,
-    pub q_nodes: i32,
-    pub best_move: Option<Move>,
-
+    best_move: Option<Move>,
+    nodes: i32,
     tt: TranspositionTable,
     age: u8,
 }
@@ -31,24 +21,21 @@ impl Engine {
 
     pub fn new() -> Self {
         Self {
-            ab_nodes: 0,
-            q_nodes: 0,
             best_move: None,
+            nodes: 0,
             tt: TranspositionTable::new(64),
             age: 0
         }
     }
 
     pub fn get_best_move(&mut self, board: &Board, max_depth: i32) -> Option<Move> {
+        // search meta
+        self.best_move = None;
         self.age = self.age.wrapping_add(1);
         
         for depth in 1..(max_depth+1) {
             // debug
-            self.ab_nodes = 0;
-            self.q_nodes = 0;
-
-            // search meta
-            self.best_move = None;
+            self.nodes = 0;
 
             // perform search
             let score = self.alpha_beta(
@@ -64,15 +51,17 @@ impl Engine {
             // debug
             print!("info depth {} ", depth);
             print!("score cp {} ", score);
-            print!("pv {} ", self.best_move.unwrap()); // ! Could be a problem later
-            print!("string ab nodes {} ", self.ab_nodes);
-            print!("q nodes {}\n", self.q_nodes - self.ab_nodes);
+            print!("nodes {} ", self.nodes);
+            print!("pv {}\n", self.best_move.unwrap()); // ! Could be a problem later
         }
 
         self.best_move
     }
 
-    fn alpha_beta(&mut self, board: &Board, mut ctx: SearchCTX) -> Score {
+    fn alpha_beta(&mut self, board: &Board, mut ctx: SearchCTX) -> i32 {
+        // debug
+        self.nodes += 1;
+
         // probe transposition table
         let key = board.hash();
         let mut tt_move: Option<Move> = None;
@@ -90,9 +79,8 @@ impl Engine {
             }
         }
         
-        // leaf node reached
+        // leaf => return eval
         if ctx.depth == 0 {
-            self.ab_nodes += 1;
             return self.quiescence_search(
                 &board,
                 ctx.clone(),
@@ -100,8 +88,8 @@ impl Engine {
         }
 
         // get legal moves
-        let mut legal_moves = self.get_legal_moves(board);
-        legal_moves.sort_by_key(|mv| self.score_move(board, &mv, &tt_move));
+        let mut legal_moves = get_legal_moves(board);
+        legal_moves.sort_by_key(|mv| score_move(board, &mv, &tt_move));
 
         // check if game is over
         if legal_moves.is_empty() {
@@ -148,7 +136,6 @@ impl Engine {
             }
 
             ctx.alpha = max(score, ctx.alpha);
-
             if score >= ctx.beta {
                 break
             };
@@ -174,8 +161,8 @@ impl Engine {
         best_score
     }
 
-    fn quiescence_search(&mut self, board: &Board, mut ctx: SearchCTX) -> Score {
-        self.q_nodes += 1;
+    fn quiescence_search(&mut self, board: &Board, mut ctx: SearchCTX) -> i32 {
+        self.nodes += 1;
         
         // prevent depth explosions
         if ctx.ply as i32 > Self::MAX_PLY {
@@ -199,11 +186,11 @@ impl Engine {
 
         // get legal moves
         let mut legal_moves = if is_check {
-            self.get_legal_moves(board)
+            get_legal_moves(board)
         } else {
-            self.get_legal_captures(board)
+            get_legal_captures(board)
         };
-        legal_moves.sort_by_key(|mv| self.score_move(board, &mv, &None));
+        legal_moves.sort_by_key(|mv| score_move(board, &mv, &None));
 
         // search
         for current_move in legal_moves {
@@ -237,77 +224,17 @@ impl Engine {
         best_score
     }
 
-    fn get_legal_moves(&self, board: &Board) -> MoveList {
-        let mut legal_moves = MoveList::new();
-        board.generate_moves(|move_group| {
-            for mv in move_group {
-                legal_moves.push(mv);
-            }
-            return false
-        });
-
-        legal_moves
-    }
-
-    fn get_legal_captures(&self, board: &Board) -> MoveList {
-        let mut legal_captures = MoveList::new();
-
-        let enemy_pieces = board.colors(!board.side_to_move());
-
-        board.generate_moves(|mut move_group| {
-            move_group.to &= enemy_pieces;
-
-            for mv in move_group {
-                legal_captures.push(mv);
-            }
-            return false
-        });
-
-        legal_captures
-    }
-
     // ! Created by Claude
-    fn score_to_tt(&self, score: Score, ply: i32) -> Score {
-        if score >= MATE_SCORE - Engine::MAX_PLY { score + ply }
-        else if score <= -MATE_SCORE + Engine::MAX_PLY { score - ply }
+    fn score_to_tt(&self, score: i32, ply: i32) -> i32 {
+        if score >= MATE_SCORE - Self::MAX_PLY { score + ply }
+        else if score <= -MATE_SCORE + Self::MAX_PLY { score - ply }
         else { score }
     }
 
     // ! Created by Claude
-    fn score_from_tt(&self, score: Score, ply: i32) -> Score {
-        if score >= MATE_SCORE - Engine::MAX_PLY { score - ply }
-        else if score <= -MATE_SCORE + Engine::MAX_PLY { score + ply }
+    fn score_from_tt(&self, score: i32, ply: i32) -> i32 {
+        if score >= MATE_SCORE - Self::MAX_PLY { score - ply }
+        else if score <= -MATE_SCORE + Self::MAX_PLY { score + ply }
         else { score }
-    }
-
-    fn score_move(&self, board: &Board, mv: &Move, tt_move: &Option<Move>) -> i32 {
-        if tt_move.is_some() {
-            if mv == &tt_move.unwrap() {
-                return INFINITY;
-            }
-        }
-
-        let is_en_passant = board.piece_on(mv.from) == Some(Piece::Pawn)
-            && mv.from.file() != mv.to.file()
-            && board.piece_on(mv.to).is_none();
-    
-        // capture moves are given priority while other moves wait
-        if board.piece_on(mv.to).is_some() || is_en_passant {
-            self.mvv_lva_score(board, mv)
-        } else {
-            0
-        }
-    }
-
-    fn mvv_lva_score(&self, board: &Board, mv: &Move) -> i32 {
-        let attacker = board
-            .piece_on(mv.from)
-            .expect("Piece msut exist on from square");
-        // if the victim does not exist this move is en passant
-        let victim = board
-            .piece_on(mv.to)
-            .unwrap_or(Piece::Pawn);
-
-        get_piece_value(victim) * 10 - get_piece_value(attacker)
     }
 }

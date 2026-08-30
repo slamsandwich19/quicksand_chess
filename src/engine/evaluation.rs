@@ -1,7 +1,5 @@
 // third party
-use cozy_chess::{Piece, Color, Square, Board};
-
-pub type Score = i32;
+use cozy_chess::{Piece, Color, Square, Board, Move};
 
 pub const INFINITY: i32 = 32_001;
 pub const MATE_SCORE: i32 = 32_000;
@@ -101,6 +99,37 @@ fn pst_index(square: Square, color: Color) -> usize {
     match color {
         Color::White => square.flip_rank() as usize,
         Color::Black => square as usize,
+    }
+}
+
+pub fn mvv_lva_score(board: &Board, mv: &Move) -> i32 {
+    let attacker = board
+        .piece_on(mv.from)
+        .expect("Piece msut exist on from square");
+    // if the victim does not exist this move is en passant
+    let victim = board
+        .piece_on(mv.to)
+        .unwrap_or(Piece::Pawn);
+
+    get_piece_value(victim) * 10 - get_piece_value(attacker)
+}
+
+pub fn score_move(board: &Board, mv: &Move, tt_move: &Option<Move>) -> i32 {
+    if tt_move.is_some() {
+        if mv == &tt_move.unwrap() {
+            return INFINITY;
+        }
+    }
+
+    let is_en_passant = board.piece_on(mv.from) == Some(Piece::Pawn)
+        && mv.from.file() != mv.to.file()
+        && board.piece_on(mv.to).is_none();
+
+    // capture moves are given priority while other moves wait
+    if board.piece_on(mv.to).is_some() || is_en_passant {
+        mvv_lva_score(board, mv)
+    } else {
+        0
     }
 }
 
