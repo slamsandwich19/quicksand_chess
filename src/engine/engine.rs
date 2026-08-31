@@ -17,7 +17,8 @@ pub struct Engine {
 }
 
 impl Engine {
-    const MAX_PLY: i32 = 8;
+    const MAX_PLY: i32 = 12;
+    const WINDOW: i32 = 20;
 
     pub fn new() -> Self {
         Self {
@@ -32,21 +33,40 @@ impl Engine {
         // search meta
         self.best_move = None;
         self.age = self.age.wrapping_add(1);
+        let score = 0;
         
         for depth in 1..(max_depth+1) {
             // debug
             self.nodes = 0;
 
-            // perform search
-            let score = self.alpha_beta(
-                &board,
-                SearchCTX {
-                    depth:  depth,
-                    ply:    0,
-                    alpha: -INFINITY,
-                    beta:   INFINITY,
+            let (mut alpha, mut beta) = if depth >= 3 {
+                (score - Self::WINDOW, score + Self::WINDOW)
+            } else {
+                (-INFINITY, INFINITY)
+            };
+
+            let mut search_window = true;
+            while search_window {
+                // perform search
+                let score = self.alpha_beta(
+                    &board,
+                    SearchCTX {
+                        depth: depth,
+                        ply:   0,
+                        alpha: alpha,
+                        beta:  beta,
+                    }
+                );
+            
+                // true score is lower than alpha (lower bound), widen and try again
+                if score <= alpha {
+                    alpha = -INFINITY;
+                } else if score >= beta {
+                    beta = INFINITY;
+                } else {
+                    search_window = false;
                 }
-            );
+            }
 
             // debug
             print!("info depth {} ", depth);
