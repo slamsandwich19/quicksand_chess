@@ -17,7 +17,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    const MAX_PLY: i32 = 12;
+    const MAX_PLY: i32 = 8;
     const WINDOW: i32 = 20;
 
     pub fn new() -> Self {
@@ -33,7 +33,7 @@ impl Engine {
         // search meta
         self.best_move = None;
         self.age = self.age.wrapping_add(1);
-        let score = 0;
+        let mut score = 0;
         
         for depth in 1..(max_depth+1) {
             // debug
@@ -48,7 +48,7 @@ impl Engine {
             let mut search_window = true;
             while search_window {
                 // perform search
-                let score = self.alpha_beta(
+                score = self.alpha_beta(
                     &board,
                     SearchCTX {
                         depth: depth,
@@ -105,6 +105,27 @@ impl Engine {
                 &board,
                 ctx.clone(),
             );
+        }
+
+        // nmp
+        let is_check = !board.checkers().is_empty();
+        if !is_check && ctx.depth >= 3 {
+            let next_board = board.null_move();
+            if next_board.is_some() {
+                let null_score = -self.alpha_beta(
+                    &next_board.unwrap(),
+                    SearchCTX { 
+                        depth:  ctx.depth - 3,
+                        ply:    ctx.ply + 1,
+                        alpha: -ctx.beta,
+                        beta:  -ctx.beta + 1,
+                    }
+                );
+
+                if null_score >= ctx.beta {
+                    return ctx.beta
+                }
+            }
         }
 
         // get legal moves
